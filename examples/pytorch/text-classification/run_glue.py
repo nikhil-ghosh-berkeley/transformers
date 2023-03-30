@@ -22,11 +22,13 @@ import random
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
+import torch.nn as nn
 
 import datasets
 import evaluate
 import numpy as np
 from datasets import load_dataset
+from build_gpt2 import build_model
 
 import transformers
 from transformers import (
@@ -35,6 +37,7 @@ from transformers import (
     AutoTokenizer,
     DataCollatorWithPadding,
     EvalPrediction,
+    GPT2ForSequenceClassification,
     HfArgumentParser,
     PretrainedConfig,
     Trainer,
@@ -43,12 +46,15 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
+from transformers.trainer_pt_utils import get_parameter_names
+from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
+from transformers.custom_utils import get_param_group, SelectorGenerator
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.28.0.dev0")
+# check_min_version("4.28.0.dev0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
 
@@ -170,6 +176,21 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
+    subsamp_ratio: float = field(
+        default=1.0, metadata={"help": "subsampling ratio for model widths"}
+    )
+    sample_prob: float = field(
+        default=1.0, metadata={"help": "subsample training dataset randomly"}
+    )
+    do_subsamp: bool = field(
+        default=True, metadata={"help": "whether to subsample weights"}
+    )
+    do_copy: bool = field(
+        default=True, metadata={"help": "whether to copy weights from pretrained model"}
+    )
+    do_scale: bool = field(
+        default=True, metadata={"help": "whether to scale weights"}
+    )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
@@ -202,6 +223,55 @@ class ModelArguments:
         metadata={"help": "Will enable to load a pretrained model whose head dimensions are different."},
     )
 
+class CustomTrainer(Trainer):
+    def create_optimizer(self):
+        opt_model = self.model
+        subsamp_ratio = opt_model.config.subsamp_ratio
+
+        if self.optimizer is None:
+            decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
+            decay_parameters = [name for name in decay_parameters if "bias" not in name]
+            param_groups = {"input": [], "output": [], "hidden": []}
+            for name, _ in opt_model.named_parameters():
+                param_groups[get_param_group(name)].append(name)
+            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
+
+            lr = optimizer_kwargs["lr"]
+            optimizer_grouped_parameters = [
+                {
+                    "params": [
+                        p for n, p in opt_model.named_parameters() if (n in param_groups["hidden"] and p.requires_grad)
+                    ],
+                    "weight_decay": self.args.weight_decay,
+                    "lr": lr / subsamp_ratio
+                },
+                {
+                    "params": [
+                        p for n, p in opt_model.named_parameters() if (n in param_groups["output"] and p.requires_grad)
+                    ],
+                    "weight_decay": self.args.weight_decay,
+                    "lr": lr / subsamp_ratio
+                },
+                {
+                    "params": [
+                        p for n, p in opt_model.named_parameters() if (n in param_groups["input"] and n in decay_parameters and p.requires_grad)
+                    ],
+                    "weight_decay": self.args.weight_decay,
+                    "lr": lr 
+                },
+                {
+                    "params": [
+                        p for n, p in opt_model.named_parameters() if (n in param_groups["input"] and n not in decay_parameters and p.requires_grad)
+                    ],
+                    "weight_decay": 0.0,
+                    "lr": lr 
+                },
+            ]
+
+            
+            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+
+        return self.optimizer
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -352,7 +422,7 @@ def main():
             num_labels = len(label_list)
 
     # Load pretrained model and tokenizer
-    #
+    build_model(num_labels, model_dir=model_args.model_name_or_path)
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     config = AutoConfig.from_pretrained(
@@ -370,7 +440,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = AutoModelForSequenceClassification.from_pretrained(
+    original_model = AutoModelForSequenceClassification.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
@@ -379,6 +449,28 @@ def main():
         use_auth_token=True if model_args.use_auth_token else None,
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
+
+    if model_args.do_subsamp:
+        config.subsamp_ratio = model_args.subsamp_ratio
+        new_encoder_embed_dim = config.subsamp_ratio * config.n_embd 
+        new_encoder_embed_dim = round(new_encoder_embed_dim / config.n_head) * config.n_head
+        config.n_embd = new_encoder_embed_dim
+
+    model = GPT2ForSequenceClassification(config)
+    original_state = original_model.state_dict()
+    model_state = model.state_dict()
+    selector_generator = SelectorGenerator()
+
+    for name, param in original_model.named_parameters():
+        param_group = get_param_group(name)
+        selectors = selector_generator.generate(param.shape, model_state[name].shape, random=False)
+        if model_args.do_copy:
+            model_state[name].copy_(original_state[name][np.ix_(*selectors)])
+        if  model_args.do_scale:
+            if param_group != "input":
+                model_state[name].div_(config.subsamp_ratio)
+    
+    logger.info(model)
 
     # Preprocessing the raw_datasets
     if data_args.task_name is not None:
@@ -458,6 +550,9 @@ def main():
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets["train"]
+        num_subset_samples = int(len(train_dataset) * model_args.sample_prob)
+        subset_indices = np.random.choice(len(train_dataset), size=num_subset_samples)
+        train_dataset = train_dataset.select(subset_indices)
         if data_args.max_train_samples is not None:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -514,7 +609,7 @@ def main():
         data_collator = None
 
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer = CustomTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,

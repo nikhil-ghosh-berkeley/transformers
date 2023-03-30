@@ -141,6 +141,8 @@ class GPT2Config(PretrainedConfig):
         self,
         vocab_size=50257,
         n_positions=1024,
+        subsamp_ratio=1.0,
+        sample_prob=1.0,
         n_embd=768,
         n_layer=12,
         n_head=12,
@@ -166,6 +168,8 @@ class GPT2Config(PretrainedConfig):
     ):
         self.vocab_size = vocab_size
         self.n_positions = n_positions
+        self.subsamp_ratio = subsamp_ratio
+        self.sample_prob = sample_prob
         self.n_embd = n_embd
         self.n_layer = n_layer
         self.n_head = n_head

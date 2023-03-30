@@ -132,7 +132,7 @@ class GPT2Attention(nn.Module):
             ),
         )
         self.register_buffer("masked_bias", torch.tensor(-1e4))
-
+        self.subsamp_ratio = config.subsamp_ratio
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.embed_dim // self.num_heads
@@ -183,7 +183,7 @@ class GPT2Attention(nn.Module):
 
         if self.scale_attn_weights:
             attn_weights = attn_weights / torch.full(
-                [], value.size(-1) ** 0.5, dtype=attn_weights.dtype, device=attn_weights.device
+                [], (value.size(-1) / self.subsamp_ratio) ** 0.5, dtype=attn_weights.dtype, device=attn_weights.device
             )
 
         # Layer-wise attention scaling
