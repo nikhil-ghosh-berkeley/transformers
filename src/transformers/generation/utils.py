@@ -1193,7 +1193,7 @@ class GenerationMixin:
         """
 
         if synced_gpus is None:
-            if is_deepspeed_zero3_enabled() and dist.world_size() > 1:
+            if is_deepspeed_zero3_enabled() and dist.get_world_size() > 1:
                 synced_gpus = True
             else:
                 synced_gpus = False
@@ -1288,6 +1288,10 @@ class GenerationMixin:
                 model_kwargs=model_kwargs,
                 device=inputs_tensor.device,
             )
+
+            # conditional generation for multi-modal models.
+            if "input_ids" in model_kwargs and model_input_name == "pixel_values":
+                input_ids = torch.cat([input_ids, model_kwargs.pop("input_ids")], dim=-1)
         else:
             input_ids = inputs_tensor if model_input_name == "input_ids" else model_kwargs.pop("input_ids")
 
