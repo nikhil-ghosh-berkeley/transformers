@@ -22,6 +22,7 @@ import random
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
+from copy import deepcopy
 import torch.nn as nn
 
 import datasets
@@ -41,6 +42,7 @@ from transformers import (
     HfArgumentParser,
     PretrainedConfig,
     Trainer,
+    TrainerCallback,
     TrainingArguments,
     default_data_collator,
     set_seed,
@@ -224,6 +226,7 @@ class ModelArguments:
     )
 
 class CustomTrainer(Trainer):
+        
     def create_optimizer(self):
         opt_model = self.model
         subsamp_ratio = opt_model.config.subsamp_ratio
@@ -272,6 +275,17 @@ class CustomTrainer(Trainer):
             self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
 
         return self.optimizer
+
+class CustomCallback(TrainerCallback):
+    def __init__(self, trainer) -> None:
+        super().__init__()
+        self._trainer = trainer
+
+    def on_evaluate(self, args, state, control, **kwargs):
+        if control.should_evaluate:
+            control_copy = deepcopy(control)
+            self._trainer.evaluate(eval_dataset=self._trainer.train_dataset, metric_key_prefix="train")
+            return control_copy
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -618,6 +632,8 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
+
+    # trainer.add_callback(CustomCallback(trainer))
 
     # Training
     if training_args.do_train:
