@@ -2229,7 +2229,6 @@ class Trainer:
             self._total_loss_scalar += tr_loss_scalar
             self._globalstep_last_logged = self.state.global_step
             self.store_flos()
-
             self.log(logs)
 
         metrics = None
@@ -2688,6 +2687,7 @@ class Trainer:
             labels = None
         outputs = model(**inputs)
         # Save past state if it exists
+
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]

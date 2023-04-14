@@ -22,38 +22,25 @@ import random
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
-from copy import deepcopy
-import torch.nn as nn
 
 import datasets
 import evaluate
 import numpy as np
-from datasets import load_dataset
 from build_gpt2 import build_model
+from custom_trainer import CustomTrainer
+from datasets import load_dataset
 
 import transformers
-from transformers import (
-    AutoConfig,
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    DataCollatorWithPadding,
-    EvalPrediction,
-    GPT2ForSequenceClassification,
-    HfArgumentParser,
-    PretrainedConfig,
-    Trainer,
-    TrainerCallback,
-    TrainingArguments,
-    default_data_collator,
-    set_seed,
-)
-from transformers.trainer_utils import get_last_checkpoint
-from transformers.trainer_pt_utils import get_parameter_names
+from transformers import (AutoConfig, AutoModelForSequenceClassification,
+                          AutoTokenizer, DataCollatorWithPadding,
+                          EvalPrediction, GPT2ForSequenceClassification,
+                          HfArgumentParser, PretrainedConfig,
+                          TrainingArguments, default_data_collator, set_seed)
+from transformers.custom_utils import SelectorGenerator, get_param_group
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
-from transformers.utils import check_min_version, send_example_telemetry
+from transformers.trainer_utils import get_last_checkpoint
+from transformers.utils import send_example_telemetry
 from transformers.utils.versions import require_version
-from transformers.custom_utils import get_param_group, SelectorGenerator
-
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.28.0.dev0")
@@ -224,68 +211,6 @@ class ModelArguments:
         default=False,
         metadata={"help": "Will enable to load a pretrained model whose head dimensions are different."},
     )
-
-class CustomTrainer(Trainer):
-        
-    def create_optimizer(self):
-        opt_model = self.model
-        subsamp_ratio = opt_model.config.subsamp_ratio
-
-        if self.optimizer is None:
-            decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
-            decay_parameters = [name for name in decay_parameters if "bias" not in name]
-            param_groups = {"input": [], "output": [], "hidden": []}
-            for name, _ in opt_model.named_parameters():
-                param_groups[get_param_group(name)].append(name)
-            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
-
-            lr = optimizer_kwargs["lr"]
-            optimizer_grouped_parameters = [
-                {
-                    "params": [
-                        p for n, p in opt_model.named_parameters() if (n in param_groups["hidden"] and p.requires_grad)
-                    ],
-                    "weight_decay": self.args.weight_decay,
-                    "lr": lr / subsamp_ratio
-                },
-                {
-                    "params": [
-                        p for n, p in opt_model.named_parameters() if (n in param_groups["output"] and p.requires_grad)
-                    ],
-                    "weight_decay": self.args.weight_decay,
-                    "lr": lr / subsamp_ratio
-                },
-                {
-                    "params": [
-                        p for n, p in opt_model.named_parameters() if (n in param_groups["input"] and n in decay_parameters and p.requires_grad)
-                    ],
-                    "weight_decay": self.args.weight_decay,
-                    "lr": lr 
-                },
-                {
-                    "params": [
-                        p for n, p in opt_model.named_parameters() if (n in param_groups["input"] and n not in decay_parameters and p.requires_grad)
-                    ],
-                    "weight_decay": 0.0,
-                    "lr": lr 
-                },
-            ]
-
-            
-            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
-
-        return self.optimizer
-
-class CustomCallback(TrainerCallback):
-    def __init__(self, trainer) -> None:
-        super().__init__()
-        self._trainer = trainer
-
-    def on_evaluate(self, args, state, control, **kwargs):
-        if control.should_evaluate:
-            control_copy = deepcopy(control)
-            self._trainer.evaluate(eval_dataset=self._trainer.train_dataset, metric_key_prefix="train")
-            return control_copy
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -632,8 +557,6 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
-
-    # trainer.add_callback(CustomCallback(trainer))
 
     # Training
     if training_args.do_train:
