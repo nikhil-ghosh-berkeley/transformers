@@ -21,7 +21,7 @@ import os
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple
 
 import datasets
 import evaluate
@@ -36,7 +36,7 @@ from transformers import (AutoConfig, AutoModelForSequenceClassification,
                           EvalPrediction, GPT2ForSequenceClassification,
                           HfArgumentParser, PretrainedConfig,
                           TrainingArguments, default_data_collator, set_seed)
-from transformers.custom_utils import SelectorGenerator, get_param_group
+from transformers.custom_utils import SelectorGenerator, get_param_group, tuple_type
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
@@ -165,11 +165,14 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    subsamp_ratio: float = field(
-        default=1.0, metadata={"help": "subsampling ratio for model widths"}
+    subsamp_ratio: Optional[float] = field(
+        default=None, metadata={"help": "subsampling ratio for model widths. If is None and prop_subsamp None then set to 1.0."}
     )
     sample_prob: float = field(
         default=1.0, metadata={"help": "subsample training dataset randomly"}
+    )
+    prop_subsamp: Optional[str] = field(
+        default=None, metadata={"help": "(a, b) with a and b floats. sets 1/subsamp_ratio = a/sample_prob + b"}
     )
     do_subsamp: bool = field(
         default=True, metadata={"help": "whether to subsample weights"}
@@ -389,8 +392,18 @@ def main():
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
 
-    if model_args.do_subsamp:
+    if model_args.subsamp_ratio is None:
+        if model_args.prop_subsamp is None:
+            config.subsamp_ratio = 1.0
+        else:
+            coeffs = tuple_type(model_args.prop_subsamp)
+            config.subsamp_ratio = 1 / (coeffs[0] / model_args.sample_prob + coeffs[1])
+            assert 0 <= config.subsamp_ratio <= 1, "Invalid subsamp_ratio, must be in between 0 and 1"
+    else:
+        assert model_args.prop_subsamp is None, "cannot simultaneously set subsamp_ratio and prop_subsamp"
         config.subsamp_ratio = model_args.subsamp_ratio
+
+    if model_args.do_subsamp:
         new_encoder_embed_dim = config.subsamp_ratio * config.n_embd 
         new_encoder_embed_dim = round(new_encoder_embed_dim / config.n_head) * config.n_head
         config.n_embd = new_encoder_embed_dim
@@ -410,7 +423,6 @@ def main():
                 model_state[name].div_(config.subsamp_ratio)
     
     logger.info(model)
-
     # Preprocessing the raw_datasets
     if data_args.task_name is not None:
         sentence1_key, sentence2_key = task_to_keys[data_args.task_name]

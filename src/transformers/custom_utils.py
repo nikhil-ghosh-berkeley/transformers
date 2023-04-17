@@ -2,6 +2,12 @@ import torch
 from typing import Tuple, List
 import numpy as np
 
+# takes string of floats and maps to tuple of floats
+def tuple_type(strings):
+    strings = strings.replace("(", "").replace(")", "")
+    mapped_int = map(float, strings.split(","))
+    return tuple(mapped_int)
+
 class SelectorGenerator:
     def __init__(self) -> None:
         self.selector_dict = dict()
