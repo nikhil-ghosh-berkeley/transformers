@@ -172,7 +172,7 @@ class ModelArguments:
         default=1.0, metadata={"help": "subsample training dataset randomly"}
     )
     prop_subsamp: Optional[str] = field(
-        default=None, metadata={"help": "(a, b) with a and b floats. sets 1/subsamp_ratio = a/sample_prob + b"}
+        default=None, metadata={"help": "(a, b) with a and b floats. sets subsamp_ratio = a * sample_prob + b"}
     )
     do_subsamp: bool = field(
         default=True, metadata={"help": "whether to subsample weights"}
@@ -397,7 +397,7 @@ def main():
             config.subsamp_ratio = 1.0
         else:
             coeffs = tuple_type(model_args.prop_subsamp)
-            config.subsamp_ratio = 1 / (coeffs[0] / model_args.sample_prob + coeffs[1])
+            config.subsamp_ratio = coeffs[0] * model_args.sample_prob + coeffs[1]
             assert 0 <= config.subsamp_ratio <= 1, "Invalid subsamp_ratio, must be in between 0 and 1"
     else:
         assert model_args.prop_subsamp is None, "cannot simultaneously set subsamp_ratio and prop_subsamp"
