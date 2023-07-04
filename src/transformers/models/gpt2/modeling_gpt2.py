@@ -151,6 +151,7 @@ class GPT2Attention(nn.Module):
         # Layer-wise attention scaling, reordering, and upcasting
         self.scale_attn_by_inverse_layer_idx = config.scale_attn_by_inverse_layer_idx
         self.layer_idx = layer_idx
+        self.subsamp_ratio = config.subsamp_ratio
         self.reorder_and_upcast_attn = config.reorder_and_upcast_attn
 
         if self.is_cross_attention:
@@ -191,6 +192,8 @@ class GPT2Attention(nn.Module):
         # Layer-wise attention scaling
         if self.scale_attn_by_inverse_layer_idx:
             attn_weights = attn_weights / float(self.layer_idx + 1)
+
+        attn_weights = attn_weights / (self.subsamp_ratio ** 0.5)
 
         if not self.is_cross_attention:
             # if only "normal" attention layer implements causal mask

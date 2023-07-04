@@ -161,6 +161,7 @@ class GPT2Config(PretrainedConfig):
         bos_token_id=50256,
         eos_token_id=50256,
         scale_attn_by_inverse_layer_idx=False,
+        subsamp_ratio=1.0,
         reorder_and_upcast_attn=False,
         **kwargs,
     ):
@@ -184,6 +185,7 @@ class GPT2Config(PretrainedConfig):
         self.scale_attn_weights = scale_attn_weights
         self.use_cache = use_cache
         self.scale_attn_by_inverse_layer_idx = scale_attn_by_inverse_layer_idx
+        self.subsamp_ratio = subsamp_ratio
         self.reorder_and_upcast_attn = reorder_and_upcast_attn
 
         self.bos_token_id = bos_token_id
