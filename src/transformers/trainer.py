@@ -1694,6 +1694,12 @@ class Trainer:
         steps_trained_in_current_epoch = 0
         steps_trained_progress_bar = None
 
+        trainer_state_file = os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
+        if resume_from_checkpoint is not None and not os.path.isfile(
+            trainer_state_file
+        ):
+            raise FileNotFoundError(f"Trainer state file {trainer_state_file} not found")
+
         # Check if continuing training from a checkpoint
         if resume_from_checkpoint is not None and os.path.isfile(
             os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
@@ -2819,6 +2825,9 @@ class Trainer:
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         # If we are executing this function, we are the process zero, so we don't check for that.
         output_dir = output_dir if output_dir is not None else self.args.output_dir
+        final_output_dir = output_dir
+        head, tail = os.path.split(output_dir)
+        output_dir = os.path.join(head, "tmp_" + tail)
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving model checkpoint to {output_dir}")
 
@@ -2849,6 +2858,8 @@ class Trainer:
 
         # Good practice: save your training arguments together with the trained model
         torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+        os.rename(output_dir, final_output_dir)
+        logger.info(f"Save completed model checkpoint {final_output_dir}")
 
     def store_flos(self):
         # Storing the number of floating-point operations that went into the model
