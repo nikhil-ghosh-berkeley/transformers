@@ -29,7 +29,13 @@ from ...test_pipeline_mixin import PipelineTesterMixin
 if is_torch_available():
     import torch
 
-    from transformers import GPTNeoXForCausalLM, GPTNeoXModel
+    from transformers import (
+        GPTNeoXForCausalLM,
+        GPTNeoXForQuestionAnswering,
+        GPTNeoXForSequenceClassification,
+        GPTNeoXForTokenClassification,
+        GPTNeoXModel,
+    )
 
 
 class GPTNeoXModelTester:
@@ -80,6 +86,7 @@ class GPTNeoXModelTester:
         self.num_labels = num_labels
         self.num_choices = num_choices
         self.scope = scope
+        self.pad_token_id = vocab_size - 1
 
     def prepare_config_and_inputs(self):
         input_ids = ids_tensor([self.batch_size, self.seq_length], self.vocab_size)
@@ -110,6 +117,7 @@ class GPTNeoXModelTester:
             type_vocab_size=self.type_vocab_size,
             is_decoder=False,
             initializer_range=self.initializer_range,
+            pad_token_id=self.pad_token_id,
         )
 
     def prepare_config_and_inputs_for_decoder(self):
@@ -141,6 +149,32 @@ class GPTNeoXModelTester:
         model.eval()
         result = model(input_ids, attention_mask=input_mask, labels=token_labels)
         self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
+
+    def create_and_check_for_question_answering(self, config, input_ids, input_mask, token_labels):
+        config.num_labels = self.num_labels
+        model = GPTNeoXForQuestionAnswering(config)
+        model.to(torch_device)
+        model.eval()
+        result = model(input_ids, attention_mask=input_mask)
+        self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
+        self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
+
+    def create_and_check_for_sequence_classification(self, config, input_ids, input_mask, token_labels):
+        config.num_labels = self.num_labels
+        model = GPTNeoXForSequenceClassification(config)
+        model.to(torch_device)
+        model.eval()
+        sequence_labels = ids_tensor([self.batch_size], self.type_sequence_label_size)
+        result = model(input_ids, attention_mask=input_mask, labels=sequence_labels)
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels))
+
+    def create_and_check_for_token_classification(self, config, input_ids, input_mask, token_labels):
+        config.num_labels = self.num_labels
+        model = GPTNeoXForTokenClassification(config)
+        model.to(torch_device)
+        model.eval()
+        result = model(input_ids, attention_mask=input_mask, labels=token_labels)
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
 
     def create_and_check_decoder_model_past_large_inputs(self, config, input_ids, input_mask):
         config.is_decoder = True
@@ -188,10 +222,29 @@ class GPTNeoXModelTester:
 
 @require_torch
 class GPTNeoXModelTest(ModelTesterMixin, GenerationTesterMixin, PipelineTesterMixin, unittest.TestCase):
-    all_model_classes = (GPTNeoXModel, GPTNeoXForCausalLM) if is_torch_available() else ()
+    all_model_classes = (
+        (
+            GPTNeoXModel,
+            GPTNeoXForCausalLM,
+            GPTNeoXForQuestionAnswering,
+            GPTNeoXForSequenceClassification,
+            GPTNeoXForTokenClassification,
+        )
+        if is_torch_available()
+        else ()
+    )
     all_generative_model_classes = (GPTNeoXForCausalLM,) if is_torch_available() else ()
     pipeline_model_mapping = (
-        {"feature-extraction": GPTNeoXModel, "text-generation": GPTNeoXForCausalLM} if is_torch_available() else {}
+        {
+            "feature-extraction": GPTNeoXModel,
+            "question-answering": GPTNeoXForQuestionAnswering,
+            "text-classification": GPTNeoXForSequenceClassification,
+            "text-generation": GPTNeoXForCausalLM,
+            "token-classification": GPTNeoXForTokenClassification,
+            "zero-shot": GPTNeoXForSequenceClassification,
+        }
+        if is_torch_available()
+        else {}
     )
     test_pruning = False
     test_missing_keys = False
@@ -200,7 +253,7 @@ class GPTNeoXModelTest(ModelTesterMixin, GenerationTesterMixin, PipelineTesterMi
 
     def setUp(self):
         self.model_tester = GPTNeoXModelTester(self)
-        self.config_tester = ConfigTester(self, config_class=GPTNeoXConfig, hidden_size=37)
+        self.config_tester = ConfigTester(self, config_class=GPTNeoXConfig, hidden_size=64, num_attention_heads=8)
 
     def test_config(self):
         self.config_tester.run_common_tests()
@@ -229,6 +282,18 @@ class GPTNeoXModelTest(ModelTesterMixin, GenerationTesterMixin, PipelineTesterMi
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_for_causal_lm(*config_and_inputs)
 
+    def test_model_for_question_answering(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_for_question_answering(*config_and_inputs)
+
+    def test_model_for_sequence_classification(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_for_sequence_classification(*config_and_inputs)
+
+    def test_model_for_token_classification(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_for_token_classification(*config_and_inputs)
+
     @unittest.skip(reason="Feed forward chunking is not implemented")
     def test_feed_forward_chunking(self):
         pass
@@ -249,9 +314,9 @@ class GPTNeoXLanguageGenerationTest(unittest.TestCase):
             model.to(torch_device)
 
             inputs = tokenizer("My favorite food is", return_tensors="pt").to(torch_device)
-            expected_output = (
-                "My favorite food is the chicken and rice.\n\nI love to cook and bake. I love to cook and bake"
-            )
+            # The hub repo. is updated on 2023-04-04, resulting in poor outputs.
+            # See: https://github.com/huggingface/transformers/pull/24193
+            expected_output = "My favorite food is a good old-fashioned, old-fashioned, old-fashioned.\n\nI'm not sure"
 
             output_ids = model.generate(**inputs, do_sample=False, max_new_tokens=20)
             output_str = tokenizer.batch_decode(output_ids)[0]
