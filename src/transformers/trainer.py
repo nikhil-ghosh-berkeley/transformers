@@ -27,6 +27,7 @@ import random
 import re
 import shutil
 import sys
+import traceback
 import time
 import warnings
 from collections.abc import Mapping
@@ -1694,11 +1695,10 @@ class Trainer:
         steps_trained_in_current_epoch = 0
         steps_trained_progress_bar = None
 
-        trainer_state_file = os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         if resume_from_checkpoint is not None and not os.path.isfile(
-            trainer_state_file
+            os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         ):
-            raise FileNotFoundError(f"Trainer state file {trainer_state_file} not found")
+            raise FileNotFoundError(f"Trainer state file {os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)} not found")
 
         # Check if continuing training from a checkpoint
         if resume_from_checkpoint is not None and os.path.isfile(
@@ -2823,11 +2823,24 @@ class Trainer:
             self.tokenizer.save_pretrained(output_dir)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        # If we are executing this function, we are the process zero, so we don't check for that.
         output_dir = output_dir if output_dir is not None else self.args.output_dir
-        final_output_dir = output_dir
         head, tail = os.path.split(output_dir)
-        output_dir = os.path.join(head, "tmp_" + tail)
+        if len(tail) == 0:
+            tail = "final"
+        output_dir = os.path.join(head, tail)
+        tmp_dir = os.path.join(head, "tmp_" + tail)
+        try:
+            self._save_with_tmp(tmp_dir, output_dir, state_dict=state_dict)
+        except:
+            logger.warning("Unable to save checkpoint")
+            logger.warning("Full Traceback:")
+            logger.warning(traceback.format_exc())
+            logger.info(f"cleaning temp dir {tmp_dir}")
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)
+
+    def _save_with_tmp(self, output_dir: str, final_output_dir: str, state_dict=None):
+        # If we are executing this function, we are the process zero, so we don't check for that.
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving model checkpoint to {output_dir}")
 
@@ -2858,6 +2871,9 @@ class Trainer:
 
         # Good practice: save your training arguments together with the trained model
         torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+        if os.path.exists(final_output_dir):
+            logger.info(f"overwriting existing dir {final_output_dir}")
+            shutil.rmtree(final_output_dir)
         os.rename(output_dir, final_output_dir)
         logger.info(f"Save completed model checkpoint {final_output_dir}")
 

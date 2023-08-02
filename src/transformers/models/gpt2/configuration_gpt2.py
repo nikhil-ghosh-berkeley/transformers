@@ -163,7 +163,6 @@ class GPT2Config(PretrainedConfig):
         bos_token_id=50256,
         eos_token_id=50256,
         scale_attn_by_inverse_layer_idx=False,
-        subsamp_ratio=1.0,
         reorder_and_upcast_attn=False,
         **kwargs,
     ):
