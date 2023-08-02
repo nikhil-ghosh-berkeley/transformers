@@ -2400,7 +2400,7 @@ class Trainer:
 
         # Maybe delete some older checkpoints.
         if self.args.should_save:
-            self._rotate_checkpoints(use_mtime=True, output_dir=run_dir)
+            self._rotate_checkpoints(use_mtime=False, output_dir=run_dir)
 
     def _load_optimizer_and_scheduler(self, checkpoint):
         """If optimizer and scheduler states exist, load them."""
