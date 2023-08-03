@@ -123,6 +123,7 @@ class RobertaConfig(PretrainedConfig):
         position_embedding_type="absolute",
         use_cache=True,
         classifier_dropout=None,
+        subsamp_ratio=1.0,
         **kwargs,
     ):
         super().__init__(pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id, **kwargs)
@@ -142,6 +143,7 @@ class RobertaConfig(PretrainedConfig):
         self.position_embedding_type = position_embedding_type
         self.use_cache = use_cache
         self.classifier_dropout = classifier_dropout
+        self.subsamp_ratio = subsamp_ratio
 
 
 class RobertaOnnxConfig(OnnxConfig):

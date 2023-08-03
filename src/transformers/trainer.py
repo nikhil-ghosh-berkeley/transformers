@@ -2400,7 +2400,7 @@ class Trainer:
 
         # Maybe delete some older checkpoints.
         if self.args.should_save:
-            self._rotate_checkpoints(use_mtime=True, output_dir=run_dir)
+            self._rotate_checkpoints(use_mtime=False, output_dir=run_dir)
 
     def _load_optimizer_and_scheduler(self, checkpoint):
         """If optimizer and scheduler states exist, load them."""
@@ -2902,7 +2902,6 @@ class Trainer:
                 regex_match = re.match(f".*{checkpoint_prefix}-([0-9]+)", path)
                 if regex_match is not None and regex_match.groups() is not None:
                     ordering_and_checkpoint_path.append((int(regex_match.groups()[0]), path))
-
         checkpoints_sorted = sorted(ordering_and_checkpoint_path)
         checkpoints_sorted = [checkpoint[1] for checkpoint in checkpoints_sorted]
         # Make sure we don't delete the best model.
