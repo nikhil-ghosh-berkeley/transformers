@@ -162,6 +162,7 @@ class LlamaAttention(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
         self.config = config
+        self.subsamp_ratio = config.subsamp_ratio
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.hidden_size // self.num_heads
@@ -211,6 +212,7 @@ class LlamaAttention(nn.Module):
         past_key_value = (key_states, value_states) if use_cache else None
 
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+        attn_weights = attn_weights / math.sqrt(self.subsamp_ratio)
 
         if attn_weights.size() != (bsz, self.num_heads, q_len, kv_seq_len):
             raise ValueError(

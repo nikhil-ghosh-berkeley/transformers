@@ -1,6 +1,11 @@
 import torch
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import numpy as np
+import os
+import json
+from .utils import logging
+
+logger = logging.get_logger(__name__)
 
 # takes string of floats and maps to tuple of floats
 def tuple_type(strings):
@@ -9,33 +14,44 @@ def tuple_type(strings):
     return tuple(mapped_int)
 
 class SelectorGenerator:
-    def __init__(self) -> None:
+    def __init__(self, save_dir: Optional[str] = None) -> None:
         self.selector_dict = dict()
+        if save_dir is not None:
+            self.load(save_dir)
+
+    def load(self, save_dir: str):
+        save_path = os.path.join(save_dir, "subsamp_selector.json")
+        if os.path.exists(save_path):
+            logger.info("Loading previous subsample selection.")
+            with open(save_path, 'r') as f:
+                self.selector_dict = json.load(f)
+        else:
+            logger.info("No previous subsample selection.")
     
-    def generate(self, base_dims: Tuple, sub_dims: Tuple, random: bool = False) -> List[np.ndarray]:
+    def save(self, save_dir: str):
+        save_path = os.path.join(save_dir, "subsamp_selector.json")
+        with open(save_path, 'w') as f:
+            logger.info(f"Saving subsample selector to {save_path}")
+            json.dump(self.selector_dict, f)
+
+    def generate(
+        self, base_dims: Tuple, sub_dims: Tuple
+    ) -> List[np.ndarray]:
         n = len(base_dims)
         assert len(sub_dims) == n
         selectors = []
         for i in range(n):
-            dim_pair = (base_dims[i], sub_dims[i])
-            if not random and dim_pair in self.selector_dict:
+            dim_pair = f"({base_dims[i]}, {sub_dims[i]})"
+            if dim_pair in self.selector_dict:
                 selector = self.selector_dict[dim_pair]
             else:
-                selector = np.sort(np.random.choice(base_dims[i], size=sub_dims[i], replace=False))
-                if not random:
-                    self.selector_dict[dim_pair] = selector
+                selector = np.sort(
+                    np.random.choice(base_dims[i], size=sub_dims[i], replace=False)
+                )
+                selector = selector.tolist()
+                self.selector_dict[dim_pair] = selector
             selectors.append(selector)
         return selectors
-
-def get_param_group(name):
-    if "ln" in name:
-        return "input"
-    elif name.startswith("transformer.h") and name.endswith("weight"):
-        return "hidden"
-    elif name == "score.weight":
-        return "output"
-    else:
-        return "input"
 
 def compute_grad_norm(parameters, norm_type: float = 2.0, error_if_nonfinite: bool = False) -> float:
     if isinstance(parameters, torch.Tensor):
