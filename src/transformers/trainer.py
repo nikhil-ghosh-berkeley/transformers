@@ -2825,8 +2825,6 @@ class Trainer:
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         head, tail = os.path.split(output_dir)
-        if len(tail) == 0:
-            tail = "final"
         output_dir = os.path.join(head, tail)
         tmp_dir = os.path.join(head, "tmp_" + tail)
         try:
@@ -2872,7 +2870,7 @@ class Trainer:
         # Good practice: save your training arguments together with the trained model
         torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
         if os.path.exists(final_output_dir):
-            logger.info(f"overwriting existing dir {final_output_dir}")
+            logger.info(f"{final_output_dir} already exists removing it")
             shutil.rmtree(final_output_dir)
         os.rename(output_dir, final_output_dir)
         logger.info(f"Save completed model checkpoint {final_output_dir}")
@@ -3126,7 +3124,7 @@ class Trainer:
         else:
             logger.info("  Num examples: Unknown")
         logger.info(f"  Batch size = {batch_size}")
-
+        
         model.eval()
 
         self.callback_handler.eval_dataloader = dataloader

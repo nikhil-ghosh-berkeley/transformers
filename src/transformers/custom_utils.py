@@ -1,8 +1,9 @@
 import torch
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 import numpy as np
 import os
 import json
+import re
 from .utils import logging
 
 logger = logging.get_logger(__name__)
@@ -14,25 +15,29 @@ def tuple_type(strings):
     return tuple(mapped_int)
 
 class SelectorGenerator:
-    def __init__(self, save_dir: Optional[str] = None) -> None:
+    def __init__(self, subsamp_ratio: float) -> None:
         self.selector_dict = dict()
-        if save_dir is not None:
-            self.load(save_dir)
+        self.subsamp_ratio = subsamp_ratio
+        self.locked = False
 
     def load(self, save_dir: str):
-        save_path = os.path.join(save_dir, "subsamp_selector.json")
-        if os.path.exists(save_path):
-            logger.info("Loading previous subsample selection.")
-            with open(save_path, 'r') as f:
-                self.selector_dict = json.load(f)
-        else:
-            logger.info("No previous subsample selection.")
+        save_path = os.path.join(save_dir, f"subsamp_selector_{self.subsamp_ratio}.json")
+        assert os.path.exists(save_path)
+        logger.info("Loading previous subsample selection.")
+        with open(save_path, 'r') as f:
+            self.selector_dict = json.load(f)
+        self.locked = True
     
     def save(self, save_dir: str):
-        save_path = os.path.join(save_dir, "subsamp_selector.json")
-        with open(save_path, 'w') as f:
-            logger.info(f"Saving subsample selector to {save_path}")
-            json.dump(self.selector_dict, f)
+        save_path = os.path.join(save_dir, f"subsamp_selector_{self.subsamp_ratio}.json")
+        os.makedirs(save_dir, exist_ok=True)
+
+        if os.path.exists(save_path):
+            logger.info("saved subsample selector exists skipping save")
+        else:
+            with open(save_path, 'w') as f:
+                logger.info(f"Saving subsample selector to {save_path}")
+                json.dump(self.selector_dict, f)
 
     def generate(
         self, base_dims: Tuple, sub_dims: Tuple
@@ -42,6 +47,8 @@ class SelectorGenerator:
         selectors = []
         for i in range(n):
             dim_pair = f"({base_dims[i]}, {sub_dims[i]})"
+            if self.locked:
+                assert dim_pair in self.selector_dict
             if dim_pair in self.selector_dict:
                 selector = self.selector_dict[dim_pair]
             else:
@@ -49,7 +56,8 @@ class SelectorGenerator:
                     np.random.choice(base_dims[i], size=sub_dims[i], replace=False)
                 )
                 selector = selector.tolist()
-                self.selector_dict[dim_pair] = selector
+                if not self.locked:
+                    self.selector_dict[dim_pair] = selector
             selectors.append(selector)
         return selectors
 
