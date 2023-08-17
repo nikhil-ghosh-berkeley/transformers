@@ -3,7 +3,6 @@ from typing import Tuple, List
 import numpy as np
 import os
 import json
-import re
 from .utils import logging
 
 logger = logging.get_logger(__name__)

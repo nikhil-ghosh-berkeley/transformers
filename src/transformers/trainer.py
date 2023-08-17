@@ -34,7 +34,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-
 # Integrations must be imported before ML frameworks:
 # isort: off
 from .integrations import (
@@ -891,7 +890,6 @@ class Trainer:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
         data_collator = self.data_collator
-
         if is_datasets_available() and isinstance(eval_dataset, datasets.Dataset):
             eval_dataset = self._remove_unused_columns(eval_dataset, description="evaluation")
         else:
@@ -907,7 +905,6 @@ class Trainer:
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
-
         return self.accelerator.prepare(DataLoader(eval_dataset, **dataloader_params))
 
     def get_test_dataloader(self, test_dataset: Dataset) -> DataLoader:
@@ -1814,6 +1811,7 @@ class Trainer:
                     and (torch.isnan(tr_loss_step) or torch.isinf(tr_loss_step))
                 ):
                     # if loss is nan or inf simply add the average of previous logged losses
+                    logger.warning("encountered nan/inf loss, using average of previous losses instead.")
                     tr_loss += tr_loss / (1 + self.state.global_step - self._globalstep_last_logged)
                 else:
                     tr_loss += tr_loss_step
@@ -1838,7 +1836,10 @@ class Trainer:
                         self.accelerator.gradient_state._set_sync_gradients(True)
 
                     # compute gradient norm
-                    gnorm = compute_grad_norm(model.parameters())
+                    if self.is_deepspeed_enabled:
+                        gnorm = model.get_global_grad_norm()
+                    else:
+                        gnorm = compute_grad_norm(model.parameters())
                     
                     # Gradient clipping
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
@@ -2825,6 +2826,7 @@ class Trainer:
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         head, tail = os.path.split(output_dir)
+        assert len(tail) > 0
         output_dir = os.path.join(head, tail)
         tmp_dir = os.path.join(head, "tmp_" + tail)
         try:
@@ -3165,6 +3167,10 @@ class Trainer:
 
             if is_torch_tpu_available():
                 xm.mark_step()
+
+            if torch.isnan(loss) and args.logging_nan_inf_filter:
+                loss = None
+                logger.warning("encountered nan loss, skipping batch.")
 
             # Update containers on host
             if loss is not None:
