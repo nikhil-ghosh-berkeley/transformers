@@ -17,10 +17,11 @@ class SelectorGenerator:
     def __init__(self, subsamp_ratio: float) -> None:
         self.selector_dict = dict()
         self.subsamp_ratio = subsamp_ratio
+        self.file_name = f"subsamp_selector_{self.subsamp_ratio}.json"
         self.locked = False
 
     def load(self, save_dir: str):
-        save_path = os.path.join(save_dir, f"subsamp_selector_{self.subsamp_ratio}.json")
+        save_path = os.path.join(save_dir, self.file_name)
         assert os.path.exists(save_path)
         logger.info("Loading previous subsample selection.")
         with open(save_path, 'r') as f:
@@ -28,15 +29,11 @@ class SelectorGenerator:
         self.locked = True
     
     def save(self, save_dir: str):
-        save_path = os.path.join(save_dir, f"subsamp_selector_{self.subsamp_ratio}.json")
+        save_path = os.path.join(save_dir, self.file_name)
         os.makedirs(save_dir, exist_ok=True)
-
-        if os.path.exists(save_path):
-            logger.info("saved subsample selector exists skipping save")
-        else:
-            with open(save_path, 'w') as f:
-                logger.info(f"Saving subsample selector to {save_path}")
-                json.dump(self.selector_dict, f)
+        with open(save_path, 'w') as f:
+            logger.info(f"Saving subsample selector to {save_path}")
+            json.dump(self.selector_dict, f)
 
     def generate(
         self, base_dims: Tuple, sub_dims: Tuple
