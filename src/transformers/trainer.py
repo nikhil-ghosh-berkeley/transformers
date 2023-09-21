@@ -1954,7 +1954,7 @@ class Trainer:
         metrics = speed_metrics("train", start_time, num_samples=num_train_samples, num_steps=self.state.max_steps)
         self.store_flos()
         metrics["total_flos"] = self.state.total_flos
-        metrics["train_loss"] = train_loss
+        metrics["average_train_loss"] = train_loss
 
         self.is_in_train = False
 
