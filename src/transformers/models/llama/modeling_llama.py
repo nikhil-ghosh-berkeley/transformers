@@ -864,10 +864,10 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
                 sequence_lengths = -1
 
         pooled_logits = logits[torch.arange(batch_size, device=logits.device), sequence_lengths]
-
+        breakpoint()
         loss = None
         if labels is not None:
-            labels = labels.to(logits.device)
+            labels = labels.to(logits.device, dtype=logits.dtype)
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
