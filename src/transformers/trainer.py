@@ -827,8 +827,6 @@ class Trainer:
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
             dataloader_params["worker_init_fn"] = seed_worker
 
-        if self.accelerator.is_main_process:
-            breakpoint()
         train_dataloader = DataLoader(train_dataset, **dataloader_params)
         train_dataloader = self.accelerator.prepare(train_dataloader)
         return train_dataloader
@@ -1569,11 +1567,10 @@ class Trainer:
         self.accelerator.free_memory()
         self._train_batch_size = batch_size
         logger.debug(f"Currently training with a batch size of: {self._train_batch_size}")
-        # Data loader and number of training steps
-        if self.accelerator.is_main_process:
-            breakpoint()
 
+        # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
+        
         # Setting up training control variables:
         # number of training epochs: num_train_epochs
         # number of training steps per epoch: num_update_steps_per_epoch

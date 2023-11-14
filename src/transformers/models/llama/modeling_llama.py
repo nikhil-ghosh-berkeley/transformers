@@ -1213,7 +1213,6 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
                 sequence_lengths = -1
 
         pooled_logits = logits[torch.arange(batch_size, device=logits.device), sequence_lengths]
-        breakpoint()
         loss = None
         if labels is not None:
             labels = labels.to(logits.device, dtype=logits.dtype)

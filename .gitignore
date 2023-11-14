@@ -1,6 +1,7 @@
 # Initially taken from Github's Python gitignore file
 gpt2/
 *output/
+.github/workflows/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
