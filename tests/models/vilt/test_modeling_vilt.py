@@ -65,7 +65,7 @@ class ViltModelTester:
         use_labels=True,
         vocab_size=99,
         hidden_size=32,
-        num_hidden_layers=5,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=37,
         hidden_act="gelu",
@@ -235,6 +235,7 @@ class ViltModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
     test_pruning = False
     test_headmasking = False
     test_torchscript = False
+    model_split_percents = [0.5, 0.8, 0.9]
 
     # ViltForMaskedLM, ViltForQuestionAnswering and ViltForImagesAndTextClassification require special treatment
     def _prepare_for_class(self, inputs_dict, model_class, return_labels=False):
@@ -318,6 +319,18 @@ class ViltModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
             inputs = self._prepare_for_class(inputs_dict, model_class, return_labels=True)
             loss = model(**inputs).loss
             loss.backward()
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant(self):
+        pass
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant_false(self):
+        pass
 
     @unittest.skip(
         reason="""VilT samples image tokens from a multinomial distribution, resulting in not deterministic

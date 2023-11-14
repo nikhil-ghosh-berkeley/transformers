@@ -57,6 +57,17 @@ class ImageProcessorUtilTester(unittest.TestCase):
             "https://huggingface.co/hf-internal-testing/tiny-random-vit/resolve/main/preprocessor_config.json"
         )
 
+    def test_image_processor_from_pretrained_subfolder(self):
+        with self.assertRaises(OSError):
+            # config is in subfolder, the following should not work without specifying the subfolder
+            _ = AutoImageProcessor.from_pretrained("hf-internal-testing/stable-diffusion-all-variants")
+
+        config = AutoImageProcessor.from_pretrained(
+            "hf-internal-testing/stable-diffusion-all-variants", subfolder="feature_extractor"
+        )
+
+        self.assertIsNotNone(config)
+
 
 @is_staging_test
 class ImageProcessorPushToHubTester(unittest.TestCase):
@@ -84,7 +95,7 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
 
     def test_push_to_hub(self):
         image_processor = ViTImageProcessor.from_pretrained(SAMPLE_IMAGE_PROCESSING_CONFIG_DIR)
-        image_processor.push_to_hub("test-image-processor", use_auth_token=self._token)
+        image_processor.push_to_hub("test-image-processor", token=self._token)
 
         new_image_processor = ViTImageProcessor.from_pretrained(f"{USER}/test-image-processor")
         for k, v in image_processor.__dict__.items():
@@ -96,7 +107,7 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
         # Push to hub via save_pretrained
         with tempfile.TemporaryDirectory() as tmp_dir:
             image_processor.save_pretrained(
-                tmp_dir, repo_id="test-image-processor", push_to_hub=True, use_auth_token=self._token
+                tmp_dir, repo_id="test-image-processor", push_to_hub=True, token=self._token
             )
 
         new_image_processor = ViTImageProcessor.from_pretrained(f"{USER}/test-image-processor")
@@ -105,7 +116,7 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
 
     def test_push_to_hub_in_organization(self):
         image_processor = ViTImageProcessor.from_pretrained(SAMPLE_IMAGE_PROCESSING_CONFIG_DIR)
-        image_processor.push_to_hub("valid_org/test-image-processor", use_auth_token=self._token)
+        image_processor.push_to_hub("valid_org/test-image-processor", token=self._token)
 
         new_image_processor = ViTImageProcessor.from_pretrained("valid_org/test-image-processor")
         for k, v in image_processor.__dict__.items():
@@ -117,7 +128,7 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
         # Push to hub via save_pretrained
         with tempfile.TemporaryDirectory() as tmp_dir:
             image_processor.save_pretrained(
-                tmp_dir, repo_id="valid_org/test-image-processor-org", push_to_hub=True, use_auth_token=self._token
+                tmp_dir, repo_id="valid_org/test-image-processor-org", push_to_hub=True, token=self._token
             )
 
         new_image_processor = ViTImageProcessor.from_pretrained("valid_org/test-image-processor-org")
@@ -128,12 +139,12 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
         CustomImageProcessor.register_for_auto_class()
         image_processor = CustomImageProcessor.from_pretrained(SAMPLE_IMAGE_PROCESSING_CONFIG_DIR)
 
-        image_processor.push_to_hub("test-dynamic-image-processor", use_auth_token=self._token)
+        image_processor.push_to_hub("test-dynamic-image-processor", token=self._token)
 
         # This has added the proper auto_map field to the config
         self.assertDictEqual(
             image_processor.auto_map,
-            {"ImageProcessor": "custom_image_processing.CustomImageProcessor"},
+            {"AutoImageProcessor": "custom_image_processing.CustomImageProcessor"},
         )
 
         new_image_processor = AutoImageProcessor.from_pretrained(
@@ -141,14 +152,3 @@ class ImageProcessorPushToHubTester(unittest.TestCase):
         )
         # Can't make an isinstance check because the new_image_processor is from the CustomImageProcessor class of a dynamic module
         self.assertEqual(new_image_processor.__class__.__name__, "CustomImageProcessor")
-
-    def test_image_processor_from_pretrained_subfolder(self):
-        with self.assertRaises(OSError):
-            # config is in subfolder, the following should not work without specifying the subfolder
-            _ = AutoImageProcessor.from_pretrained("hf-internal-testing/stable-diffusion-all-variants")
-
-        config = AutoImageProcessor.from_pretrained(
-            "hf-internal-testing/stable-diffusion-all-variants", subfolder="feature_extractor"
-        )
-
-        self.assertIsNotNone(config)

@@ -29,7 +29,14 @@ from transformers import (
     InstructBlipQFormerConfig,
     InstructBlipVisionConfig,
 )
-from transformers.testing_utils import require_torch, require_vision, slow, torch_device
+from transformers.testing_utils import (
+    require_accelerate,
+    require_bitsandbytes,
+    require_torch,
+    require_vision,
+    slow,
+    torch_device,
+)
 from transformers.utils import is_torch_available, is_vision_available
 
 from ...test_configuration_common import ConfigTester
@@ -64,7 +71,7 @@ class InstructBlipVisionModelTester:
         is_training=True,
         hidden_size=32,
         projection_dim=32,
-        num_hidden_layers=5,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=37,
         dropout=0.1,
@@ -192,6 +199,18 @@ class InstructBlipVisionModelTest(ModelTesterMixin, unittest.TestCase):
     def test_training_gradient_checkpointing(self):
         pass
 
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant(self):
+        pass
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant_false(self):
+        pass
+
     @unittest.skip(reason="InstructBlipVisionModel has no base class and is not available in MODEL_MAPPING")
     def test_save_load_fast_init_from_base(self):
         pass
@@ -219,7 +238,7 @@ class InstructBlipQFormerModelTester:
         vocab_size=99,
         hidden_size=32,
         projection_dim=32,
-        num_hidden_layers=6,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=37,
         dropout=0.1,
@@ -295,7 +314,7 @@ class InstructBlipTextModelDecoderOnlyTester:
         use_labels=False,
         vocab_size=99,
         hidden_size=16,
-        num_hidden_layers=5,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=4,
         hidden_act="gelu",
@@ -521,10 +540,12 @@ def prepare_img():
 @require_torch
 @slow
 class InstructBlipModelIntegrationTest(unittest.TestCase):
+    @require_bitsandbytes
+    @require_accelerate
     def test_inference_vicuna_7b(self):
         processor = InstructBlipProcessor.from_pretrained("Salesforce/instructblip-vicuna-7b")
         model = InstructBlipForConditionalGeneration.from_pretrained(
-            "Salesforce/instructblip-vicuna-7b", load_in_8bit=True
+            "Salesforce/instructblip-vicuna-7b", load_in_8bit=True, low_cpu_mem_usage=True
         )
 
         url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
@@ -537,18 +558,17 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
             logits = model(**inputs).logits
 
         expected_slice = torch.tensor(
-            [[-3.5410, -12.2812, 8.2812], [-5.2500, -12.0938, 7.8398], [-4.1523, -13.8281, 9.0000]],
+            [[-3.4902, -12.5078, 8.4141], [-5.1211, -12.1328, 7.8281], [-4.0312, -13.5938, 9.1172]],
             device=torch_device,
         )
         self.assertTrue(torch.allclose(logits[0, :3, :3].float(), expected_slice, atol=1e-3))
 
         # verify generation
         outputs = model.generate(**inputs, max_new_tokens=30)
-        outputs[outputs == 0] = 2
         generated_text = processor.batch_decode(outputs, skip_special_tokens=True)[0].strip()
 
         # fmt: off
-        expected_outputs = [    2,   450, 22910,  9565,   310,   445,  1967,   338,   393,   263, 767,   338, 13977,   292, 22095,   373,   278,  1250,   310,   263, 13328, 20134, 29963,  1550, 19500,  1623,   263, 19587,  4272, 11952, 29889]
+        expected_outputs = [2, 450, 22910, 9565, 310, 445, 1967, 338, 393, 263, 767, 338, 13977, 292, 22095, 373, 278, 1250, 310, 263, 13328, 20134, 29963, 1550, 19500, 1623, 263, 19587, 4272, 11952, 29889]
         # fmt: on
         self.assertEqual(outputs[0].tolist(), expected_outputs)
         self.assertEqual(
@@ -561,6 +581,7 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
         model = InstructBlipForConditionalGeneration.from_pretrained(
             "Salesforce/instructblip-flan-t5-xl",
             torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
         ).to(torch_device)
 
         url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"

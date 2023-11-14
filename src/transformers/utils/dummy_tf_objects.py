@@ -30,6 +30,13 @@ class TFForcedEOSTokenLogitsProcessor(metaclass=DummyObject):
         requires_backends(self, ["tf"])
 
 
+class TFForceTokensLogitsProcessor(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
 class TFGenerationMixin(metaclass=DummyObject):
     _backends = ["tf"]
 
@@ -80,6 +87,20 @@ class TFNoRepeatNGramLogitsProcessor(metaclass=DummyObject):
 
 
 class TFRepetitionPenaltyLogitsProcessor(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFSuppressTokensAtBeginLogitsProcessor(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFSuppressTokensLogitsProcessor(metaclass=DummyObject):
     _backends = ["tf"]
 
     def __init__(self, *args, **kwargs):
@@ -815,6 +836,27 @@ class TFConvNextPreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["tf"])
 
 
+class TFConvNextV2ForImageClassification(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFConvNextV2Model(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFConvNextV2PreTrainedModel(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
 TF_CTRL_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 
@@ -947,6 +989,13 @@ TF_DEBERTA_V2_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 
 class TFDebertaV2ForMaskedLM(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFDebertaV2ForMultipleChoice(metaclass=DummyObject):
     _backends = ["tf"]
 
     def __init__(self, *args, **kwargs):

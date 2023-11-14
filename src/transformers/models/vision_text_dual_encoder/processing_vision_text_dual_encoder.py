@@ -32,9 +32,9 @@ class VisionTextDualEncoderProcessor(ProcessorMixin):
     information.
 
     Args:
-        image_processor ([`AutoImageProcessor`]):
+        image_processor ([`AutoImageProcessor`], *optional*):
             The image processor is a required input.
-        tokenizer ([`PreTrainedTokenizer`]):
+        tokenizer ([`PreTrainedTokenizer`], *optional*):
             The tokenizer is a required input.
     """
     attributes = ["image_processor", "tokenizer"]
@@ -64,7 +64,7 @@ class VisionTextDualEncoderProcessor(ProcessorMixin):
         """
         Main method to prepare for the model one or several sequences(s) and image(s). This method forwards the `text`
         and `kwargs` arguments to VisionTextDualEncoderTokenizer's [`~PreTrainedTokenizer.__call__`] if `text` is not
-        `None` to encode the text. To prepare the image(s), this method forwards the `images` and `kwrags` arguments to
+        `None` to encode the text. To prepare the image(s), this method forwards the `images` and `kwargs` arguments to
         AutoImageProcessor's [`~AutoImageProcessor.__call__`] if `images` is not `None`. Please refer to the doctsring
         of the above two methods for more information.
 

@@ -536,7 +536,6 @@ class CpmAntPreTrainedModel(PreTrainedModel):
 
     config_class = CpmAntConfig
     base_model_prefix = "cpmant"
-    supports_gradient_checkpointing = True
 
     def _init_weights(self, module):
         """Initialize the weights"""
@@ -555,10 +554,6 @@ class CpmAntPreTrainedModel(PreTrainedModel):
             module.weight.data.fill_(1.0)
         elif isinstance(module, CpmAntSegmentPositionEmbedding):
             module.relative_attention_bias.data.normal_(mean=0.0, std=self.config.init_std)
-
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, CpmAntEncoder):
-            module.gradient_checkpointing = value
 
 
 CPMANT_START_DOCSTRING = r"""
@@ -653,7 +648,7 @@ class CpmAntModel(CpmAntPreTrainedModel):
         use_cache: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> Union[Tuple[torch.Tensor], BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states

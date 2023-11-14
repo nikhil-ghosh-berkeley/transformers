@@ -56,15 +56,19 @@ See also:
 [[autodoc]] BloomConfig
     - all
 
-## BloomModel
-
-[[autodoc]] BloomModel
-    - forward
-
 ## BloomTokenizerFast
 
 [[autodoc]] BloomTokenizerFast
     - all
+
+
+<frameworkcontent>
+<pt>
+
+## BloomModel
+
+[[autodoc]] BloomModel
+    - forward
 
 ## BloomForCausalLM
 
@@ -85,3 +89,21 @@ See also:
 
 [[autodoc]] BloomForQuestionAnswering
     - forward
+
+</pt>
+<jax>
+
+## FlaxBloomModel
+
+[[autodoc]] FlaxBloomModel
+    - __call__
+
+## FlaxBloomForCausalLM
+
+[[autodoc]] FlaxBloomForCausalLM
+    - __call__
+
+</jax>
+</frameworkcontent>
+
+

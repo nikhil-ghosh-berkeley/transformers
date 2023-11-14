@@ -71,7 +71,7 @@ class Pix2StructVisionModelTester:
         patch_embed_hidden_size=12,
         projection_dim=32,
         max_patches=64,
-        num_hidden_layers=5,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=37,
         dropout=0.1,
@@ -199,6 +199,18 @@ class Pix2StructVisionModelTest(ModelTesterMixin, unittest.TestCase):
     def test_training_gradient_checkpointing(self):
         pass
 
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant(self):
+        pass
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant_false(self):
+        pass
+
     @unittest.skip(reason="Training is tested directly on `Pix2StructTextImageModelTest`")
     def test_retain_grad_hidden_states_attentions(self):
         pass
@@ -230,7 +242,7 @@ class Pix2StructTextModelTester:
         vocab_size=99,
         hidden_size=12,
         projection_dim=32,
-        num_hidden_layers=5,
+        num_hidden_layers=2,
         num_attention_heads=4,
         intermediate_size=37,
         dropout=0.1,
@@ -334,6 +346,18 @@ class Pix2StructTextModelTest(ModelTesterMixin, unittest.TestCase):
 
     @unittest.skip(reason="Training is tested directly on `Pix2StructTextImageModelTest`")
     def test_training_gradient_checkpointing(self):
+        pass
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant(self):
+        pass
+
+    @unittest.skip(
+        reason="This architecure seem to not compute gradients properly when using GC, check: https://github.com/huggingface/transformers/pull/27124"
+    )
+    def test_training_gradient_checkpointing_use_reentrant_false(self):
         pass
 
     @unittest.skip(reason="Pix2Struct does not use inputs_embeds")

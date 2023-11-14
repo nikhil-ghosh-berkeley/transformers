@@ -26,7 +26,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
-from ...deepspeed import is_deepspeed_zero3_enabled
+from ...integrations.deepspeed import is_deepspeed_zero3_enabled
 from ...modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
@@ -451,15 +451,8 @@ class Wav2Vec2FeatureEncoder(nn.Module):
 
         for conv_layer in self.conv_layers:
             if self._requires_grad and self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs)
-
-                    return custom_forward
-
-                hidden_states = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(conv_layer),
+                hidden_states = self._gradient_checkpointing_func(
+                    conv_layer.__call__,
                     hidden_states,
                 )
             else:
@@ -505,12 +498,15 @@ class Wav2Vec2Attention(nn.Module):
         dropout: float = 0.0,
         is_decoder: bool = False,
         bias: bool = True,
+        is_causal: bool = False,
+        config: Optional[Wav2Vec2Config] = None,
     ):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
+        self.config = config
 
         if (self.head_dim * num_heads) != self.embed_dim:
             raise ValueError(
@@ -519,6 +515,7 @@ class Wav2Vec2Attention(nn.Module):
             )
         self.scaling = self.head_dim**-0.5
         self.is_decoder = is_decoder
+        self.is_causal = is_causal
 
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -803,17 +800,11 @@ class Wav2Vec2Encoder(nn.Module):
             if not skip_the_layer or deepspeed_zero3_is_enabled:
                 # under deepspeed zero3 all gpus must run in sync
                 if self.gradient_checkpointing and self.training:
-                    # create gradient checkpointing function
-                    def create_custom_forward(module):
-                        def custom_forward(*inputs):
-                            return module(*inputs, output_attentions)
-
-                        return custom_forward
-
-                    layer_outputs = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(layer),
+                    layer_outputs = self._gradient_checkpointing_func(
+                        layer.__call__,
                         hidden_states,
                         attention_mask,
+                        output_attentions,
                     )
                 else:
                     layer_outputs = layer(
@@ -892,17 +883,11 @@ class Wav2Vec2EncoderStableLayerNorm(nn.Module):
                 # under deepspeed zero3 all gpus must run in sync
                 # XXX: could optimize this like synced_gpus in generate_utils but not sure if it's worth the code complication
                 if self.gradient_checkpointing and self.training:
-                    # create gradient checkpointing function
-                    def create_custom_forward(module):
-                        def custom_forward(*inputs):
-                            return module(*inputs, output_attentions)
-
-                        return custom_forward
-
-                    layer_outputs = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(layer),
+                    layer_outputs = self._gradient_checkpointing_func(
+                        layer.__call__,
                         hidden_states,
                         attention_mask,
+                        output_attentions,
                     )
                 else:
                     layer_outputs = layer(
@@ -1173,10 +1158,6 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
         attention_mask = attention_mask.flip([-1]).cumsum(-1).flip([-1]).bool()
         return attention_mask
 
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, (Wav2Vec2Encoder, Wav2Vec2EncoderStableLayerNorm, Wav2Vec2FeatureEncoder)):
-            module.gradient_checkpointing = value
-
     def _get_adapters(self):
         if self.config.adapter_attn_dim is None:
             raise ValueError(f"{self.__class__} has no adapter layers. Make sure to define `config.adapter_attn_dim`.")
@@ -1230,7 +1211,7 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
                 'http://hostname': 'foo.bar:4012'}`. The proxies are used on each request.
             local_files_only(`bool`, *optional*, defaults to `False`):
                 Whether or not to only look at local files (i.e., do not try to download the model).
-            use_auth_token (`str` or `bool`, *optional*):
+            token (`str` or `bool`, *optional*):
                 The token to use as HTTP bearer authorization for remote files. If `True`, or not specified, will use
                 the token generated when running `huggingface-cli login` (stored in `~/.huggingface`).
             revision (`str`, *optional*, defaults to `"main"`):
@@ -1273,7 +1254,7 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
             raise ValueError(f"Cannot load_adapter for {target_lang} if `config.adapter_attn_dim` is not defined.")
 
         if target_lang == self.target_lang and not force_load:
-            logger.warn(f"Adapter weights are already set to {target_lang}.")
+            logger.warning(f"Adapter weights are already set to {target_lang}.")
             return
 
         cache_dir = kwargs.pop("cache_dir", None)
@@ -1281,9 +1262,21 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
         resume_download = kwargs.pop("resume_download", False)
         proxies = kwargs.pop("proxies", None)
         local_files_only = kwargs.pop("local_files_only", False)
+        token = kwargs.pop("token", None)
         use_auth_token = kwargs.pop("use_auth_token", None)
         revision = kwargs.pop("revision", None)
         use_safetensors = kwargs.pop("use_safetensors", None if is_safetensors_available() else False)
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed in v5 of Transformers. Please use `token` instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError(
+                    "`token` and `use_auth_token` are both specified. Please set only the argument `token`."
+                )
+            token = use_auth_token
 
         model_path_or_id = self.config._name_or_path
         state_dict = None
@@ -1300,7 +1293,7 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
                     resume_download=resume_download,
                     proxies=proxies,
                     local_files_only=local_files_only,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     cache_dir=cache_dir,
                 )
@@ -1335,7 +1328,7 @@ class Wav2Vec2PreTrainedModel(PreTrainedModel):
                     resume_download=resume_download,
                     proxies=proxies,
                     local_files_only=local_files_only,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     cache_dir=cache_dir,
                 )
@@ -1469,7 +1462,7 @@ class Wav2Vec2Model(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )
@@ -1616,7 +1609,7 @@ class Wav2Vec2ForPreTraining(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )
@@ -1860,6 +1853,12 @@ class Wav2Vec2ForMaskedLM(Wav2Vec2PreTrainedModel):
 @add_start_docstrings(
     """Wav2Vec2 Model with a `language modeling` head on top for Connectionist Temporal Classification (CTC).""",
     WAV_2_VEC_2_START_DOCSTRING,
+    """
+        target_lang (`str`, *optional*):
+            Language id of adapter weights. Adapter weights are stored in the format adapter.<lang>.safetensors or
+            adapter.<lang>.bin. Only relevant when using an instance of [`Wav2Vec2ForCTC`] with adapters. Uses 'eng' by
+            default.
+    """,
 )
 class Wav2Vec2ForCTC(Wav2Vec2PreTrainedModel):
     def __init__(self, config, target_lang: Optional[str] = None):
@@ -1912,7 +1911,7 @@ class Wav2Vec2ForCTC(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )
@@ -2044,7 +2043,7 @@ class Wav2Vec2ForSequenceClassification(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )
@@ -2165,7 +2164,7 @@ class Wav2Vec2ForAudioFrameClassification(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )
@@ -2329,7 +2328,7 @@ class Wav2Vec2ForXVector(Wav2Vec2PreTrainedModel):
         not be updated during training.
         """
         warnings.warn(
-            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5."
+            "The method `freeze_feature_extractor` is deprecated and will be removed in Transformers v5. "
             "Please use the equivalent `freeze_feature_encoder` method instead.",
             FutureWarning,
         )

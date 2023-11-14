@@ -14,18 +14,21 @@
 # limitations under the License.
 
 
-import argparse
 import json
 import logging
 import os
 import sys
 from unittest.mock import patch
 
-import torch
-
 from transformers import ViTMAEForPreTraining, Wav2Vec2ForPreTraining
-from transformers.testing_utils import CaptureLogger, TestCasePlus, get_gpu_count, slow, torch_device
-from transformers.utils import is_apex_available
+from transformers.testing_utils import (
+    CaptureLogger,
+    TestCasePlus,
+    backend_device_count,
+    is_torch_fp16_available_on_device,
+    slow,
+    torch_device,
+)
 
 
 SRC_DIRS = [
@@ -76,13 +79,6 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 
 
-def get_setup_file():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f")
-    args = parser.parse_args()
-    return args.f
-
-
 def get_results(output_dir):
     results = {}
     path = os.path.join(output_dir, "all_results.json")
@@ -92,11 +88,6 @@ def get_results(output_dir):
     else:
         raise ValueError(f"can't find {path}")
     return results
-
-
-def is_cuda_and_apex_available():
-    is_using_cuda = torch.cuda.is_available() and torch_device == "cuda"
-    return is_using_cuda and is_apex_available()
 
 
 stream_handler = logging.StreamHandler(sys.stdout)
@@ -124,7 +115,7 @@ class ExamplesTests(TestCasePlus):
             --max_seq_length=128
             """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -149,12 +140,12 @@ class ExamplesTests(TestCasePlus):
             --overwrite_output_dir
             """.split()
 
-        if torch.cuda.device_count() > 1:
+        if backend_device_count(torch_device) > 1:
             # Skipping because there are not enough batches to train the model + would need a drop_last to work.
             return
 
-        if torch_device != "cuda":
-            testargs.append("--no_cuda")
+        if torch_device == "cpu":
+            testargs.append("--use_cpu")
 
         with patch.object(sys, "argv", testargs):
             run_clm.main()
@@ -175,8 +166,8 @@ class ExamplesTests(TestCasePlus):
             --config_overrides n_embd=10,n_head=2
             """.split()
 
-        if torch_device != "cuda":
-            testargs.append("--no_cuda")
+        if torch_device == "cpu":
+            testargs.append("--use_cpu")
 
         logger = run_clm.logger
         with patch.object(sys, "argv", testargs):
@@ -201,8 +192,8 @@ class ExamplesTests(TestCasePlus):
             --num_train_epochs=1
         """.split()
 
-        if torch_device != "cuda":
-            testargs.append("--no_cuda")
+        if torch_device == "cpu":
+            testargs.append("--use_cpu")
 
         with patch.object(sys, "argv", testargs):
             run_mlm.main()
@@ -211,7 +202,7 @@ class ExamplesTests(TestCasePlus):
 
     def test_run_ner(self):
         # with so little data distributed training needs more epochs to get the score on par with 0/1 gpu
-        epochs = 7 if get_gpu_count() > 1 else 2
+        epochs = 7 if backend_device_count(torch_device) > 1 else 2
 
         tmp_dir = self.get_auto_remove_tmp_dir()
         testargs = f"""
@@ -231,8 +222,8 @@ class ExamplesTests(TestCasePlus):
             --seed 7
         """.split()
 
-        if torch_device != "cuda":
-            testargs.append("--no_cuda")
+        if torch_device == "cpu":
+            testargs.append("--use_cpu")
 
         with patch.object(sys, "argv", testargs):
             run_ner.main()
@@ -320,7 +311,7 @@ class ExamplesTests(TestCasePlus):
     def test_generation(self):
         testargs = ["run_generation.py", "--prompt=Hello", "--length=10", "--seed=42"]
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         model_type, model_name = (
@@ -409,7 +400,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -439,7 +430,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -470,7 +461,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -501,7 +492,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -533,7 +524,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -559,7 +550,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -587,7 +578,7 @@ class ExamplesTests(TestCasePlus):
             --seed 42
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):
@@ -612,7 +603,7 @@ class ExamplesTests(TestCasePlus):
             --seed 32
         """.split()
 
-        if is_cuda_and_apex_available():
+        if is_torch_fp16_available_on_device(torch_device):
             testargs.append("--fp16")
 
         with patch.object(sys, "argv", testargs):

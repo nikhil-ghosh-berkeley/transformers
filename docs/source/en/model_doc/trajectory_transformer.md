@@ -16,6 +16,15 @@ rendered properly in your Markdown viewer.
 
 # Trajectory Transformer
 
+<Tip warning={true}>
+
+This model is in maintenance mode only, so we won't accept any new PRs changing its code.
+
+If you run into any issues running this model, please reinstall the last version that supported this model: v4.30.0.
+You can do so by running the following command: `pip install -U transformers==4.30.0`.
+
+</Tip>
+
 ## Overview
 
 The Trajectory Transformer model was proposed in [Offline Reinforcement Learning as One Big Sequence Modeling Problem](https://arxiv.org/abs/2106.02039)  by Michael Janner, Qiyang Li, Sergey Levine.
@@ -34,18 +43,17 @@ in offline RL algorithms. We demonstrate the flexibility of this approach across
 imitation learning, goal-conditioned RL, and offline RL. Further, we show that this approach can be combined with
 existing model-free algorithms to yield a state-of-the-art planner in sparse-reward, long-horizon tasks.*
 
-Tips:
+This model was contributed by [CarlCochet](https://huggingface.co/CarlCochet). The original code can be found [here](https://github.com/jannerm/trajectory-transformer).
+
+## Usage tips
 
 This Transformer is used for deep reinforcement learning. To use it, you need to create sequences from
 actions, states and rewards from all previous timesteps. This model will treat all these elements together
 as one big sequence (a trajectory).
 
-This model was contributed by [CarlCochet](https://huggingface.co/CarlCochet). The original code can be found [here](https://github.com/jannerm/trajectory-transformer).
-
 ## TrajectoryTransformerConfig
 
 [[autodoc]] TrajectoryTransformerConfig
-
 
 ## TrajectoryTransformerModel
 

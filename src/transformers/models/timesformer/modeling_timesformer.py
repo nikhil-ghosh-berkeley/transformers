@@ -439,16 +439,10 @@ class TimesformerEncoder(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(layer_module),
+                layer_outputs = self._gradient_checkpointing_func(
+                    layer_module.__call__,
                     hidden_states,
+                    output_attentions,
                 )
             else:
                 layer_outputs = layer_module(hidden_states, output_attentions)
@@ -493,10 +487,6 @@ class TimesformerPreTrainedModel(PreTrainedModel):
             nn.init.trunc_normal_(module.cls_token, std=self.config.initializer_range)
             nn.init.trunc_normal_(module.position_embeddings, std=self.config.initializer_range)
             module.patch_embeddings.apply(self._init_weights)
-
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, TimesformerEncoder):
-            module.gradient_checkpointing = value
 
 
 TIMESFORMER_START_DOCSTRING = r"""
@@ -559,11 +549,11 @@ class TimesformerModel(TimesformerPreTrainedModel):
     @replace_return_docstrings(output_type=BaseModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
-        pixel_values,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-    ):
+        pixel_values: torch.FloatTensor,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple[torch.FloatTensor], BaseModelOutput]:
         r"""
         Returns:
 
@@ -601,6 +591,15 @@ class TimesformerModel(TimesformerPreTrainedModel):
 
 
         >>> def sample_frame_indices(clip_len, frame_sample_rate, seg_len):
+        ...     '''
+        ...     Sample a given number of frame indices from the video.
+        ...     Args:
+        ...         clip_len (`int`): Total number of frames to sample.
+        ...         frame_sample_rate (`int`): Sample every n-th frame.
+        ...         seg_len (`int`): Maximum allowed index of sample's last frame.
+        ...     Returns:
+        ...         indices (`List[int]`): List of sampled frame indices
+        ...     '''
         ...     converted_len = int(clip_len * frame_sample_rate)
         ...     end_idx = np.random.randint(converted_len, seg_len)
         ...     start_idx = end_idx - converted_len
@@ -730,6 +729,15 @@ class TimesformerForVideoClassification(TimesformerPreTrainedModel):
 
 
         >>> def sample_frame_indices(clip_len, frame_sample_rate, seg_len):
+        ...     '''
+        ...     Sample a given number of frame indices from the video.
+        ...     Args:
+        ...         clip_len (`int`): Total number of frames to sample.
+        ...         frame_sample_rate (`int`): Sample every n-th frame.
+        ...         seg_len (`int`): Maximum allowed index of sample's last frame.
+        ...     Returns:
+        ...         indices (`List[int]`): List of sampled frame indices
+        ...     '''
         ...     converted_len = int(clip_len * frame_sample_rate)
         ...     end_idx = np.random.randint(converted_len, seg_len)
         ...     start_idx = end_idx - converted_len

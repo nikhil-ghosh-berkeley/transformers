@@ -16,17 +16,30 @@ rendered properly in your Markdown viewer.
 
 # Open-Llama
 
+<Tip warning={true}>
+
+This model is in maintenance mode only, we don't accept any new PRs changing its code.
+
+If you run into any issues running this model, please reinstall the last version that supported this model: v4.31.0.
+You can do so by running the following command: `pip install -U transformers==4.31.0`.
+
+</Tip>
+
+<Tip warning={true}>
+
+This model differs from the [OpenLLaMA models](https://huggingface.co/models?search=openllama) on the Hugging Face Hub, which primarily use the [LLaMA](llama) architecture.
+
+</Tip>
+
 ## Overview
 
-The Open-Llama model was proposed in [Open-Llama project](https://github.com/s-JoL/Open-Llama) by community developer s-JoL.
+The Open-Llama model was proposed in the open source Open-Llama project by community developer s-JoL.
 
 The model is mainly based on LLaMA with some modifications, incorporating memory-efficient attention from Xformers, stable embedding from Bloom, and shared input-output embedding from PaLM.
 And the model is pre-trained on both Chinese and English, which gives it better performance on Chinese language tasks.
 
 This model was contributed by [s-JoL](https://huggingface.co/s-JoL).
-The original code can be found [Open-Llama](https://github.com/s-JoL/Open-Llama).
-Checkpoint and usage can be found at [s-JoL/Open-Llama-V1](https://huggingface.co/s-JoL/Open-Llama-V1).
-
+The original code was released on GitHub by [s-JoL](https://github.com/s-JoL), but is now removed.
 
 ## OpenLlamaConfig
 

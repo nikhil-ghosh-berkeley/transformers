@@ -16,6 +16,15 @@ rendered properly in your Markdown viewer.
 
 # M-CTC-T
 
+<Tip warning={true}>
+
+This model is in maintenance mode only, so we won't accept any new PRs changing its code.
+
+If you run into any issues running this model, please reinstall the last version that supported this model: v4.30.0.
+You can do so by running the following command: `pip install -U transformers==4.30.0`.
+
+</Tip>
+
 ## Overview
 
 The M-CTC-T model was proposed in [Pseudo-Labeling For Massively Multilingual Speech Recognition](https://arxiv.org/abs/2111.00161) by Loren Lugosch, Tatiana Likhomanenko, Gabriel Synnaeve, and Ronan Collobert. The model is a 1B-param transformer encoder, with a CTC head over 8065 character labels and a language identification head over 60 language ID labels. It is trained on Common Voice (version 6.1, December 2020 release) and VoxPopuli. After training on Common Voice and VoxPopuli, the model is trained on Common Voice only. The labels are unnormalized character-level transcripts (punctuation and capitalization are not removed). The model takes as input Mel filterbank features from a 16Khz audio signal.
@@ -31,17 +40,15 @@ pseudo-labels for all languages, either from scratch or by fine-tuning. Experime
 Common Voice and unlabeled VoxPopuli datasets show that our recipe can yield a model with better
 performance for many languages that also transfers well to LibriSpeech.*
 
-
-
 This model was contributed by [cwkeam](https://huggingface.co/cwkeam). The original code can be found [here](https://github.com/flashlight/wav2letter/tree/main/recipes/mling_pl).
 
-## Documentation resources
+## Usage tips
+
+The PyTorch version of this model is only available in torch 1.9 and higher.
+
+## Resources
 
 - [Automatic speech recognition task guide](../tasks/asr)
-
-Tips:
-
-- The PyTorch version of this model is only available in torch 1.9 and higher.
 
 ## MCTCTConfig
 
@@ -60,7 +67,6 @@ Tips:
     - save_pretrained
     - batch_decode
     - decode
-
 
 ## MCTCTModel
 

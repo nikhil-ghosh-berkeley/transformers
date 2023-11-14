@@ -1304,20 +1304,15 @@ class LongformerEncoder(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, is_global_attn, output_attentions)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(layer_module),
+                layer_outputs = self._gradient_checkpointing_func(
+                    layer_module.__call__,
                     hidden_states,
                     attention_mask,
                     head_mask[idx] if head_mask is not None else None,
                     is_index_masked,
                     is_index_global_attn,
+                    is_global_attn,
+                    output_attentions,
                 )
             else:
                 layer_outputs = layer_module(
@@ -1438,10 +1433,6 @@ class LongformerPreTrainedModel(PreTrainedModel):
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
-
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, LongformerEncoder):
-            module.gradient_checkpointing = value
 
 
 LONGFORMER_START_DOCSTRING = r"""
@@ -1707,6 +1698,7 @@ class LongformerModel(LongformerPreTrainedModel):
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
         elif input_ids is not None:
+            self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
             input_shape = input_ids.size()
         elif inputs_embeds is not None:
             input_shape = inputs_embeds.size()[:-1]

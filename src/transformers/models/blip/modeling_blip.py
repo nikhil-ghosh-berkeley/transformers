@@ -14,6 +14,7 @@
 # limitations under the License.
 """ PyTorch BLIP model."""
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
 
@@ -74,7 +75,7 @@ class BlipForConditionalGenerationModelOutput(ModelOutput):
     Args:
         loss (`torch.FloatTensor`, *optional*, returned when `labels` is provided, `torch.FloatTensor` of shape `(1,)`):
             Languge modeling loss from the text decoder.
-        decoder_logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.vocab_size)`, *optional*):
+        logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.vocab_size)`, *optional*):
             Prediction scores of the language modeling head of the text decoder model.
         image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim)`, *optional*):
             The image embeddings obtained after applying the Vision Transformer model to the input image.
@@ -94,11 +95,20 @@ class BlipForConditionalGenerationModelOutput(ModelOutput):
     """
 
     loss: Optional[Tuple[torch.FloatTensor]] = None
-    decoder_logits: Optional[Tuple[torch.FloatTensor]] = None
+    logits: Optional[Tuple[torch.FloatTensor]] = None
     image_embeds: Optional[torch.FloatTensor] = None
     last_hidden_state: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+    @property
+    def decoder_logits(self):
+        warnings.warn(
+            "`decoder_logits` attribute is deprecated and will be removed in version 5 of Transformers."
+            " Please use the `logits` attribute to retrieve the final output instead.",
+            FutureWarning,
+        )
+        return self.logits
 
 
 @dataclass
@@ -236,7 +246,7 @@ class BlipVisionEmbeddings(nn.Module):
     def forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
         batch_size = pixel_values.shape[0]
         target_dtype = self.patch_embedding.weight.dtype
-        patch_embeds = self.patch_embedding(pixel_values)  # shape = [*, width, grid, grid]
+        patch_embeds = self.patch_embedding(pixel_values.to(dtype=target_dtype))  # shape = [*, width, grid, grid]
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
         class_embeds = self.class_embedding.expand(batch_size, 1, -1).to(target_dtype)
@@ -451,10 +461,6 @@ class BlipPreTrainedModel(PreTrainedModel):
         elif isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, BlipEncoder):
-            module.gradient_checkpointing = value
-
 
 BLIP_START_DOCSTRING = r"""
     This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
@@ -612,17 +618,11 @@ class BlipEncoder(nn.Module):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(encoder_layer),
+                layer_outputs = self._gradient_checkpointing_func(
+                    encoder_layer.__call__,
                     hidden_states,
                     attention_mask,
+                    output_attentions,
                 )
             else:
                 layer_outputs = encoder_layer(
@@ -1011,7 +1011,7 @@ class BlipForConditionalGeneration(BlipPreTrainedModel):
 
         return BlipForConditionalGenerationModelOutput(
             loss=outputs.loss,
-            decoder_logits=outputs.logits,
+            logits=outputs.logits,
             image_embeds=image_embeds,
             last_hidden_state=vision_outputs.last_hidden_state,
             hidden_states=vision_outputs.hidden_states,

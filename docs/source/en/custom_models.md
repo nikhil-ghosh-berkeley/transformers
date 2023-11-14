@@ -272,6 +272,22 @@ Note that there is no need to specify an auto class for the configuration (there
 [`AutoConfig`]) but it's different for models. Your custom model could be suitable for many different tasks, so you
 have to specify which one of the auto classes is the correct one for your model.
 
+<Tip>
+
+Use `register_for_auto_class()` if you want the code files to be copied. If you instead prefer to use code on the Hub from another repo, 
+you don't need to call it. In cases where there's more than one auto class, you can modify the `config.json` directly using the 
+following structure:
+
+```
+"auto_map": {     
+	"AutoConfig": "<your-repo-name>--<config-name>",     
+	"AutoModel": "<your-repo-name>--<config-name>",
+	"AutoModelFor<Task>": "<your-repo-name>--<config-name>",    
+},
+```
+
+</Tip>
+
 Next, let's create the config and models as we did before:
 
 ```py
@@ -341,7 +357,7 @@ model. This is different from pushing the code to the Hub in the sense that user
 get the custom models (contrarily to automatically downloading the model code from the Hub).
 
 As long as your config has a `model_type` attribute that is different from existing model types, and that your model
-classes have the right `config_class` attributes, you can just add them to the auto classes likes this:
+classes have the right `config_class` attributes, you can just add them to the auto classes like this:
 
 ```py
 from transformers import AutoConfig, AutoModel, AutoModelForImageClassification
