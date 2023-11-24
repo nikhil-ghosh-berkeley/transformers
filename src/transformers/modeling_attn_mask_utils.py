@@ -221,6 +221,19 @@ def _prepare_4d_causal_attention_mask(
         attention_mask = attn_mask_converter.to_causal_4d(
             input_shape[0], input_shape[-1], key_value_length, dtype=inputs_embeds.dtype, device=inputs_embeds.device
         )
+    
+    attention_mask = torch.clamp_min(attention_mask, torch.finfo(inputs_embeds.dtype).min)
+    # for every prompt instance, examine if there is any token who has a full masking attention tensor
+    fully_masked = (attention_mask == torch.finfo(inputs_embeds.dtype).min).all(dim=-1)
+    if torch.any(fully_masked):
+        # This can happen when your prompts are left padded and you want to masked out the left padded tokens
+        # However the operation 'expanded_attn_mask + combined_attention_mask' above will cause those left padded tokens
+        # to have a fully masked attention tensor, and cause numerical instability(inf) during inference. Therefore
+        # for those tokens who has attention tensor fully masked, force them to at least attend to itself.  
+        indices = torch.arange(attention_mask.size(2), device=attention_mask.device)
+        indices = indices.unsqueeze(0).unsqueeze(0).expand_as(fully_masked)
+        # Set the n-th elements in the n-th tensors to be zero
+        attention_mask[fully_masked, indices[fully_masked]] = 0.
 
     return attention_mask
 
