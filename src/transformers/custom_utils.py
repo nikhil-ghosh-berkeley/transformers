@@ -14,10 +14,12 @@ def tuple_type(strings):
     return tuple(mapped_int)
 
 class SelectorGenerator:
-    def __init__(self, subsamp_ratio: float) -> None:
+    def __init__(self, subsamp_ratio: float, seed: int) -> None:
         self.selector_dict = dict()
         self.subsamp_ratio = subsamp_ratio
         self.file_name = f"subsamp_selector_{self.subsamp_ratio}.json"
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
         self.locked = False
 
     def load(self, save_dir: str):
@@ -49,7 +51,7 @@ class SelectorGenerator:
                 selector = self.selector_dict[dim_pair]
             else:
                 selector = np.sort(
-                    np.random.choice(base_dims[i], size=sub_dims[i], replace=False)
+                    self.rng.choice(base_dims[i], size=sub_dims[i], replace=False)
                 )
                 selector = selector.tolist()
                 if not self.locked:

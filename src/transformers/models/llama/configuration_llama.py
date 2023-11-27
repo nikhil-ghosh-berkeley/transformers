@@ -127,6 +127,8 @@ class LlamaConfig(PretrainedConfig):
         rms_norm_eps=1e-6,
         use_cache=True,
         subsamp_ratio=1.0,
+        fix_head_dim=True,
+        mup_attention=True,
         pad_token_id=None,
         bos_token_id=1,
         eos_token_id=2,
@@ -156,6 +158,8 @@ class LlamaConfig(PretrainedConfig):
         self.pretraining_tp = pretraining_tp
         self.use_cache = use_cache
         self.subsamp_ratio = subsamp_ratio
+        self.fix_head_dim = fix_head_dim
+        self.mup_attention = mup_attention
         self.rope_theta = rope_theta
         self.rope_scaling = rope_scaling
         self._rope_scaling_validation()
