@@ -124,6 +124,8 @@ class RobertaConfig(PretrainedConfig):
         use_cache=True,
         classifier_dropout=None,
         subsamp_ratio=1.0,
+        fix_head_dim=True,
+        mup_attention=True,
         **kwargs,
     ):
         super().__init__(pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id, **kwargs)
@@ -144,6 +146,8 @@ class RobertaConfig(PretrainedConfig):
         self.use_cache = use_cache
         self.classifier_dropout = classifier_dropout
         self.subsamp_ratio = subsamp_ratio
+        self.fix_head_dim = fix_head_dim
+        self.mup_attention = mup_attention
 
 
 class RobertaOnnxConfig(OnnxConfig):

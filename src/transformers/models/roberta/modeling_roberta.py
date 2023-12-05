@@ -165,6 +165,8 @@ class RobertaSelfAttention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.subsamp_ratio = config.subsamp_ratio
+        self.fix_head_dim = config.fix_head_dim
+        self.mup_attention = config.mup_attention
 
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
@@ -259,7 +261,8 @@ class RobertaSelfAttention(nn.Module):
                 attention_scores = attention_scores + relative_position_scores_query + relative_position_scores_key
 
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        attention_scores = attention_scores / math.sqrt(self.subsamp_ratio)
+        if self.mup_attention and not self.fix_head_dim:
+            attention_scores = attention_scores / math.sqrt(self.subsamp_ratio)
         
         if attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in RobertaModel forward() function)

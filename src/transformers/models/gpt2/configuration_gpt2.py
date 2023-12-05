@@ -146,7 +146,8 @@ class GPT2Config(PretrainedConfig):
         vocab_size=50257,
         n_positions=1024,
         subsamp_ratio=1.0,
-        sample_prob=1.0,
+        fix_head_dim=True,
+        mup_attention=True,
         n_embd=768,
         n_layer=12,
         n_head=12,
@@ -173,7 +174,8 @@ class GPT2Config(PretrainedConfig):
         self.vocab_size = vocab_size
         self.n_positions = n_positions
         self.subsamp_ratio = subsamp_ratio
-        self.sample_prob = sample_prob
+        self.fix_head_dim = fix_head_dim
+        self.mup_attention = mup_attention
         self.n_embd = n_embd
         self.n_layer = n_layer
         self.n_head = n_head
@@ -192,7 +194,6 @@ class GPT2Config(PretrainedConfig):
         self.scale_attn_weights = scale_attn_weights
         self.use_cache = use_cache
         self.scale_attn_by_inverse_layer_idx = scale_attn_by_inverse_layer_idx
-        self.subsamp_ratio = subsamp_ratio
         self.reorder_and_upcast_attn = reorder_and_upcast_attn
 
         self.bos_token_id = bos_token_id

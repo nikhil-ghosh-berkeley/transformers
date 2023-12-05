@@ -134,6 +134,8 @@ class GPT2Attention(nn.Module):
         )
         self.register_buffer("masked_bias", torch.tensor(-1e4))
         self.subsamp_ratio = config.subsamp_ratio
+        self.fix_head_dim = config.fix_head_dim
+        self.mup_attention = config.mup_attention
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.embed_dim // self.num_heads
@@ -190,8 +192,9 @@ class GPT2Attention(nn.Module):
         # Layer-wise attention scaling
         if self.scale_attn_by_inverse_layer_idx:
             attn_weights = attn_weights / float(self.layer_idx + 1)
-
-        attn_weights = attn_weights / (self.subsamp_ratio ** 0.5)
+            
+        if self.mup_attention and not self.fix_head_dim:
+            attn_weights = attn_weights / (self.subsamp_ratio ** 0.5)
 
         if not self.is_cross_attention:
             # if only "normal" attention layer implements causal mask
