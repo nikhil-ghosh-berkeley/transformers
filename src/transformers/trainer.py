@@ -2894,6 +2894,7 @@ class Trainer:
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
+        output_dir = output_dir.rstrip("/")
         head, tail = os.path.split(output_dir)
         assert len(tail) > 0
         tmp_dir = os.path.join(head, "tmp_" + tail)
